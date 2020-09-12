@@ -1,0 +1,1 @@
+module "go-veeam-check-ssl"
