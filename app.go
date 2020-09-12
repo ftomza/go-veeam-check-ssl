@@ -18,7 +18,7 @@ import (
 
 type CheckResult struct {
 	URL            string
-	Host           string
+	Hostname       string
 	Port           string
 	Result         string
 	Desc           string
@@ -34,7 +34,7 @@ func StartCheck(file *os.File, out *os.File) error {
 	reader := bufio.NewReader(file)
 	csvRes := csv.NewWriter(out)
 	csvRes.Comma = ';'
-	err := csvRes.Write([]string{"URL", "Host", "Port", "Result", "Desc", "ValidityExpire"})
+	err := csvRes.Write([]string{"URL", "Hostname", "Port", "Result", "Desc", "ValidityExpire"})
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func StartCheck(file *os.File, out *os.File) error {
 		if !ok {
 			return nil
 		}
-		err = csvRes.Write([]string{res.URL, res.Host, res.Port, res.Result, res.Desc, res.ValidityExpire.Format(time.RFC3339)})
+		err = csvRes.Write([]string{res.URL, res.Hostname, res.Port, res.Result, res.Desc, res.ValidityExpire.Format(time.RFC3339)})
 		if err != nil {
 			return err
 		}
@@ -94,18 +94,18 @@ func CheckUrl(ctx context.Context, checkedUrl string) (res *CheckResult) {
 		res.Desc = fmt.Sprintf("Parse URL: %s", err)
 		return res
 	}
-	res.Host = parseUrl.Host
+	res.Hostname = parseUrl.Hostname()
 	res.Port = parseUrl.Port()
 	if res.Port == "" {
 		res.Port = "443"
 	}
-	if res.Host == "" {
+	if res.Hostname == "" {
 		res.Result = ResultBAD
 		res.Desc = fmt.Sprintf("host not set")
 		return res
 	}
 	dialer := new(net.Dialer)
-	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", res.Host, res.Port))
+	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", res.Hostname, res.Port))
 	if err != nil {
 		res.Result = ResultBAD
 		res.Desc = fmt.Sprintf("Dial error: %s", err)

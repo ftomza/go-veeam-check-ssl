@@ -22,10 +22,10 @@ func TestCheckUrl(t *testing.T) {
 				checkedUrl: "github.com",
 			},
 			wantRes: &CheckResult{
-				URL:    "github.com",
-				Host:   "github.com",
-				Port:   "443",
-				Result: "OK",
+				URL:      "github.com",
+				Hostname: "github.com",
+				Port:     "443",
+				Result:   "OK",
 			},
 		},
 	}
