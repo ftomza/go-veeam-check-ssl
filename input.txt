@@ -1,0 +1,5 @@
+github.com
+avalon.ru
+госуслуги.рф
+mydomain.dev:87
+http://veeam.ru

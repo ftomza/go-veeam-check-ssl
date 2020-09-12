@@ -1,1 +1,3 @@
-module "go-veeam-check-ssl"
+module go-veeam-check-ssl
+
+go 1.15
