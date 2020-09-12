@@ -38,7 +38,7 @@ func StartCheck(file *os.File, out *os.File) error {
 	if err != nil {
 		return err
 	}
-	csvRes.Flush()
+	defer csvRes.Flush()
 	queue := make(chan *CheckResult, 4)
 	wgQueue := sync.WaitGroup{}
 	for {
@@ -63,6 +63,12 @@ func StartCheck(file *os.File, out *os.File) error {
 		wgQueue.Wait()
 		close(queue)
 	}()
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			csvRes.Flush()
+		}
+	}()
 	for {
 		res, ok := <-queue
 		if !ok {
@@ -72,7 +78,6 @@ func StartCheck(file *os.File, out *os.File) error {
 		if err != nil {
 			return err
 		}
-		csvRes.Flush()
 	}
 }
 
