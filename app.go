@@ -30,6 +30,38 @@ const (
 	ResultOK  = "OK"
 )
 
+const (
+	WORKERS      = 10
+	TASKSBUFFER  = 100
+	TIMEOUTCHECK = 5
+)
+
+type PoolWorker struct {
+	wg    sync.WaitGroup
+	tasks chan string
+}
+
+func (p *PoolWorker) Worker(name string, writer *csv.Writer) {
+	for checkedUrl := range p.tasks {
+		p.wg.Add(1)
+		ctx, closer := context.WithTimeout(context.Background(), TIMEOUTCHECK*time.Second)
+		log.Printf("Start check on %s: %s\n", name, checkedUrl)
+		res := CheckUrl(ctx, checkedUrl)
+		err := writer.Write([]string{res.URL, res.Hostname, res.Port, res.Result, res.Desc, res.ValidityExpire.Format(time.RFC3339)})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Finish check on %s: : %s\n", name, checkedUrl)
+		p.wg.Done()
+		closer()
+	}
+}
+
+func (p *PoolWorker) Wait() {
+	p.wg.Wait()
+	close(p.tasks)
+}
+
 func StartCheck(file *os.File, out *os.File) error {
 	reader := bufio.NewReader(file)
 	csvRes := csv.NewWriter(out)
@@ -39,46 +71,31 @@ func StartCheck(file *os.File, out *os.File) error {
 		return err
 	}
 	defer csvRes.Flush()
-	queue := make(chan *CheckResult, 4)
-	wgQueue := sync.WaitGroup{}
-	for {
-		inLine, err := reader.ReadString('\n')
-		if err != nil && err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		checkedUrl := strings.TrimSpace(inLine)
-		wgQueue.Add(1)
-		go func() {
-			ctx, closer := context.WithTimeout(context.Background(), 5*time.Second)
-			defer closer()
-			log.Printf("Start check: %s\n", checkedUrl)
-			queue <- CheckUrl(ctx, checkedUrl)
-			log.Printf("Finish check: %s\n", checkedUrl)
-			wgQueue.Done()
-		}()
-	}
-	go func() {
-		wgQueue.Wait()
-		close(queue)
-	}()
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
 			csvRes.Flush()
 		}
 	}()
-	for {
-		res, ok := <-queue
-		if !ok {
-			return nil
-		}
-		err = csvRes.Write([]string{res.URL, res.Hostname, res.Port, res.Result, res.Desc, res.ValidityExpire.Format(time.RFC3339)})
-		if err != nil {
+	pool := PoolWorker{
+		wg:    sync.WaitGroup{},
+		tasks: make(chan string, TASKSBUFFER),
+	}
+	for i := 1; i <= WORKERS; i++ {
+		go pool.Worker(fmt.Sprintf("%d", i), csvRes)
+	}
+	notEmpty := true
+	for notEmpty {
+		inLine, err := reader.ReadString('\n')
+		if err != nil && err == io.EOF {
+			notEmpty = false
+		} else if err != nil {
 			return err
 		}
+		pool.tasks <- strings.TrimSpace(inLine)
 	}
+	pool.Wait()
+	return nil
 }
 
 //CheckUrl check checkedUrl result into a CheckResult structure.
